@@ -1,0 +1,243 @@
+---
+title: 'Preprocessing: data cleaning and feature selection'
+author: "Themis Halka, Ioanna Dimitropoulou"
+date: "2025-12-22"
+output: html_document
+---
+
+```{r, echo=FALSE}
+library(dplyr)
+library(edgeR)
+library(DESeq2)
+```
+
+In this script, we will get the data ready for downstream analysis. Following the downloading of the TCGA-GDC data for both glioblastoma (gbm) and low-grade gliomas (lgg), we obtained two separate expression matrices, gene annotations and sample metadata for each cancer category. Here, we aim to merge this data and obtain a merged gene annotation as well as two clean matrices ready for further analysis: 
+- X: samples x genes 
+- Y: samples x metadata
+
+Furthermore, we need to prepare the data for analysis. To that aim, we will perform: 
+- data cleaning, to remove lowly expressed genes that might bias the analysis 
+- normalisation, to ensure that read counts are comparable between the different samples 
+- feature selection, to reduce noise and prevent overfitting in the downstream analysis with deep learning approaches
+
+## Loading data 
+
+```{r}
+# glioblatoma multiforme 
+expr_gbm <- read.csv("../data/gbm_expression.csv")
+genes_gbm <- read.csv("../data/gbm_genes.csv")
+samples_gbm <- readRDS("../data/gbm_samples.rds")
+
+# low-grade gliomas
+expr_lgg <- read.csv("../data/lgg_expression.csv")
+genes_lgg <- read.csv("../data/lgg_genes.csv")
+samples_lgg <- readRDS("../data/lgg_samples.rds")
+```
+
+#### Merging expression matrix
+
+We now merge the expression matrix between GBM and LGG. 
+
+```{r}
+# checking the expression matrices 
+dim(expr_gbm)
+head(expr_gbm)
+
+dim(expr_lgg)
+head(expr_lgg)
+```
+
+
+We first check whether most genes are shared between both datasets. 
+
+```{r}
+common_genes <- intersect(expr_gbm$gene_id, expr_lgg$gene_id)
+length(common_genes)
+```
+
+```{r}
+# filtering the data to keep common genes
+expr_lgg <- expr_lgg[common_genes, ]
+expr_gbm <- expr_gbm[common_genes, ]
+dim(expr_lgg)
+dim(expr_gbm)
+
+# enforcing identical row order to make sure merging is done adequately 
+expr_gbm <- expr_gbm[expr_lgg$gene_id, ]
+```
+
+```{r}
+# combining samples column-wise, with matching rows
+expr <- cbind(expr_lgg, expr_gbm)
+
+# setting gene id as rownames for easier handling 
+rownames(expr) <- expr$gene_id
+expr$gene_id <- NULL
+
+head(expr)
+```
+
+#### Merging sample metadata 
+
+```{r}
+# checking metadata 
+dim(samples_gbm)
+head(samples_gbm)
+dim(samples_lgg)
+head(samples_lgg)
+```
+We can see that the number of columns do not match between both sample metadata, meaning that the available clinical information are different between GBM and LGG. We will identify the columns common to both cancer category. 
+
+```{r}
+common_cols <- intersect(colnames(samples_gbm), colnames(samples_lgg))
+length(common_cols)
+print(paste("Column only present in GBM:", colnames(samples_gbm)[!colnames(samples_gbm) %in% common_cols]))
+print(paste("Column only present in LGG:", colnames(samples_lgg)[!colnames(samples_lgg) %in% common_cols]))
+
+```
+We can see that 106 columns match. The information not shared in both samples might be useful for the downstream analysis and interpretation, hence we will keep all columns, attributing NA values to the cancer category for which the information is not available. Moreover, we know that all GBM are grade 4 tumours, hence we will add this information. 
+
+```{r}
+# adding tumour grade information for GBM
+samples_gbm$tumor_grade <- "G4"
+```
+
+```{r}
+# adding cancer category to the sample metadata before merging 
+samples_lgg$tumor_type <- "LGG"
+samples_gbm$tumor_type <- "GBM"
+```
+
+```{r}
+# merging metadata
+samples <- bind_rows(samples_lgg, samples_gbm)
+
+dim(samples)
+head(samples)
+```
+
+#### Aligning metadata to expression matrix 
+
+We need to make sure that the sample names perfectly match between our expression matrix and sample metadata to correctly retrieve sample information during the downstream analysis. 
+
+```{r}
+head(colnames(expr))
+head(rownames(samples))
+```
+
+We can see that while sample names use dots in the expression matrix, they use dashes in the sample metadata. We will align them by replacing all dots by dashes in the expression matrix' sample names. 
+
+```{r}
+colnames(expr) <- gsub("\\.", "-", colnames(expr))
+```
+
+
+```{r}
+# making sure the samples are identical and in the same order 
+all(colnames(expr) %in% rownames(samples))
+samples <- samples[colnames(expr), , drop = FALSE]
+head(samples)
+```
+
+
+## Data cleaning
+
+We now clean the data to make sure to remove lowly expressed genes, which would bias the analysis by adding noise and instability to the model. 
+
+We will filter lowly expressed genes using Counts Per Million (CPM) from `edgeR`, which accounts for library size differences between samples, making it more suitable than raw read counts. We will conserve genes showing a CPM >= 1 in at least 20% of samples. 
+
+```{r}
+cpm_counts <- cpm(expr)
+keep <- rowSums(cpm_counts >= 1) >= (0.2 * ncol(expr))
+expr_filtrd <- expr[keep, ]
+```
+
+
+## Normalisation 
+
+We then need to normalise the gene counts, which vary between samples as they depend on the sequencing depth and gene length, in order to be able to compare gene expression in the different samples. 
+
+Since our read counts were obtained by STAR RNA-Seq aligner, our counts are raw and have not yet been normalised. We will normalise them using Variance-Stabilising Transformation (VST) from `DESeq2`, which uses a log2-scale. This is suitable for deep learning models, which work well on roughly normally distributed data, as it produces homoscedastic data (variance independant of the mean). 
+
+```{r}
+# creating DESeq object 
+dds <- DESeqDataSetFromMatrix(countData = expr_filtrd,
+                              colData = samples,
+                              design = ~1)
+# applying VST 
+vsd <- vst(dds, blind=TRUE)
+
+# retrieving the normalised expression matrix
+expr_filtrd <- assay(vsd)
+```
+
+## Feature selection 
+
+We then perform feature selection. This step is crucial before feeding the data into deep learning models, as to reduce noise and prevent overfitting. We need to find a trade-off between removing noise and conserving biologically-important genes. 
+
+We will select 2000 highly variable genes based on the output from the VST normalisation. Since VST is based on stabilisation of variance, we will use the variance to identify genes that truly vary across samples. 
+
+```{r}
+# calculating the variance for each gene
+genes_var <- apply(expr_filtrd, 1, var)
+
+# selecting the 2000 most variable genes
+top_genes <- names(sort(genes_var, decreasing = TRUE)[1:2000])
+expr_filtrd <- expr_filtrd[top_genes, ]
+```
+
+## Transposing the expression matrix 
+
+We finally transpose the expression matrix to make that it is organised as samples x genes (STAR counts are formatted genes x samples). This is the format we need for the downstream analysis. 
+
+```{r}
+expr_t <- t(expr_filtrd)
+```
+
+## Final checks 
+
+We now perform a few checks to verify that our different merged expression matrix and sample metadata are aligned and correctly formatted. 
+
+```{r}
+dim(expr_t) # dimensions of expression matrix
+all(rownames(expr_t) == rownames(samples)) # alignment between expression matrix and metadata
+```
+
+
+## Merging gene annotations 
+
+We will need the gene annotations provided by TCGA for downstream analysis and interpretation. We will therefore concatenate both gene lists and filter it according to the selected genes conserved. 
+
+```{r}
+dim(genes_gbm)
+head(genes_gbm)
+dim(genes_lgg)
+head(genes_lgg)
+```
+
+
+```{r}
+genes <- bind_rows(genes_gbm, genes_lgg) %>% # merging gene annotations
+  distinct(gene_id, .keep_all = TRUE) %>% # keeping unique gene ids 
+  filter(gene_id %in% common_genes)
+head(genes)
+dim(genes)
+```
+
+Since all genes were common between GBM and LGG, we did not expect any filtering. Indeed, the dimensions of gene annotations are conserved. 
+
+## Saving data
+
+We now save the merged expression matrix, gene annotations and sample metadata.
+
+```{r}
+write.csv(expr_t, "../data/merged_expression.csv")
+write.csv(genes, "../data/merged_genes.csv")
+saveRDS(samples, "../data/merged_samples.rds")
+```
+
+```{r}
+# saving session info for reproducbility purposes 
+sessionInfo()
+```
+
