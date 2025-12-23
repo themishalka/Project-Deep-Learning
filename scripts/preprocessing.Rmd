@@ -24,14 +24,14 @@ Furthermore, we need to prepare the data for analysis. To that aim, we will perf
 
 ```{r}
 # glioblatoma multiforme 
-expr_gbm <- read.csv("../data/gbm_expression.csv")
-genes_gbm <- read.csv("../data/gbm_genes.csv")
-samples_gbm <- readRDS("../data/gbm_samples.rds")
+expr_gbm <- read.csv("C:/Users/joann/Desktop/M2/Deep_Learning/data/gbm_expression.csv", check.names = FALSE)
+genes_gbm <- read.csv("C:/Users/joann/Desktop/M2/Deep_Learning/data/gbm_genes.csv")
+samples_gbm <- readRDS("C:/Users/joann/Desktop/M2/Deep_Learning/data/gbm_samples.rds")
 
 # low-grade gliomas
-expr_lgg <- read.csv("../data/lgg_expression.csv")
-genes_lgg <- read.csv("../data/lgg_genes.csv")
-samples_lgg <- readRDS("../data/lgg_samples.rds")
+expr_lgg <- read.csv("C:/Users/joann/Desktop/M2/Deep_Learning/lgg_expression.csv", check.names = FALSE)
+genes_lgg <- read.csv("C:/Users/joann/Desktop/M2/Deep_Learning/lgg_genes.csv")
+samples_lgg <- readRDS("C:/Users/joann/Desktop/M2/Deep_Learning/lgg_samples.rds")
 ```
 
 #### Merging expression matrix
@@ -54,27 +54,27 @@ We first check whether most genes are shared between both datasets.
 common_genes <- intersect(expr_gbm$gene_id, expr_lgg$gene_id)
 length(common_genes)
 ```
-
+We see that all of the genes (60660) are shared between the two datasets, so we do not apply common gene filtering, but we match the order row of the two files, which will allow their merging into one. 
 ```{r}
-# filtering the data to keep common genes
-expr_lgg <- expr_lgg[common_genes, ]
-expr_gbm <- expr_gbm[common_genes, ]
-dim(expr_lgg)
-dim(expr_gbm)
+#we name each row using the gene id column
+rownames(expr_lgg) <- expr_lgg$gene_id
+rownames(expr_gbm) <- expr_gbm$gene_id
 
-# enforcing identical row order to make sure merging is done adequately 
-expr_gbm <- expr_gbm[expr_lgg$gene_id, ]
-```
+#safety check to ensure identical length
+stopifnot(setequal(rownames(expr_lgg), rownames(expr_gbm)))
 
-```{r}
-# combining samples column-wise, with matching rows
+#reorder gbm genes based on lgg order
+expr_gbm <- expr_gbm[rownames(expr_lgg), , drop = FALSE]
+
+#drop gene_id before to avoid duplicate gene_id columns
+expr_lgg$gene_id <- NULL
+expr_gbm$gene_id <- NULL
+
+# merge columns (samples)
 expr <- cbind(expr_lgg, expr_gbm)
 
-# setting gene id as rownames for easier handling 
-rownames(expr) <- expr$gene_id
-expr$gene_id <- NULL
-
 head(expr)
+
 ```
 
 #### Merging sample metadata 
@@ -86,7 +86,7 @@ head(samples_gbm)
 dim(samples_lgg)
 head(samples_lgg)
 ```
-We can see that the number of columns do not match between both sample metadata, meaning that the available clinical information are different between GBM and LGG. We will identify the columns common to both cancer category. 
+We can see that the number of columns do not match between both sample metadata, meaning that the available clinical information are different between GBM and LGG. We will identify the columns common to both cancer categories. 
 
 ```{r}
 common_cols <- intersect(colnames(samples_gbm), colnames(samples_lgg))
@@ -125,11 +125,7 @@ head(colnames(expr))
 head(rownames(samples))
 ```
 
-We can see that while sample names use dots in the expression matrix, they use dashes in the sample metadata. We will align them by replacing all dots by dashes in the expression matrix' sample names. 
-
-```{r}
-colnames(expr) <- gsub("\\.", "-", colnames(expr))
-```
+They match, so we can proceed. 
 
 
 ```{r}
@@ -144,12 +140,13 @@ head(samples)
 
 We now clean the data to make sure to remove lowly expressed genes, which would bias the analysis by adding noise and instability to the model. 
 
-We will filter lowly expressed genes using Counts Per Million (CPM) from `edgeR`, which accounts for library size differences between samples, making it more suitable than raw read counts. We will conserve genes showing a CPM >= 1 in at least 20% of samples. 
+We will filter lowly expressed genes using Filter by Expression from `edgeR`, which accounts for library size differences between samples. It uses the counts-per million (cpm) logic, but converts it into a threshold appropriate for library sizes, adapting the cutoff in case of low-depth samples. 
 
 ```{r}
-cpm_counts <- cpm(expr)
-keep <- rowSums(cpm_counts >= 1) >= (0.2 * ncol(expr))
+y <- DGEList(counts = expr)
+keep <- filterByExpr(y, min.count = 10)  
 expr_filtrd <- expr[keep, ]
+
 ```
 
 
@@ -231,9 +228,9 @@ Since all genes were common between GBM and LGG, we did not expect any filtering
 We now save the merged expression matrix, gene annotations and sample metadata.
 
 ```{r}
-write.csv(expr_t, "../data/merged_expression.csv")
-write.csv(genes, "../data/merged_genes.csv")
-saveRDS(samples, "../data/merged_samples.rds")
+write.csv(expr_t, "C:/Users/joann/Desktop/M2/Deep_Learning/merged_expression.csv")
+write.csv(genes, "C:/Users/joann/Desktop/M2/Deep_Learning/merged_genes.csv")
+saveRDS(samples, "C:/Users/joann/Desktop/M2/Deep_Learning/merged_samples.rds")
 ```
 
 ```{r}
