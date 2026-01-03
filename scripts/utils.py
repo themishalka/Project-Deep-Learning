@@ -132,13 +132,10 @@ def explore_tuning(search_space, output_tuning, stage_name="Stage 1"):
 def save_model(
     run_result,
     save_dir,
-    file_name,
-    X_train=None,
-    X_test=None,
-    final=False,
+    file_name
 ):
     """
-    Save model, hyperparameters, and (optionally) latent space + reconstructions.
+    Save model and hyperparameters
 
     Parameters
     ----------
@@ -150,12 +147,6 @@ def save_model(
         Directory where artifacts will be written.
     file_name : str
         Base file name (no extension).
-    X_train, X_test : array-like, optional
-        Data used for computing latent codes and reconstructions
-        when final=True.
-    final : bool, default=False
-        If True, also save latent representations and reconstructions
-        for train and test sets.
     """
 
     os.makedirs(save_dir, exist_ok=True)
@@ -170,26 +161,5 @@ def save_model(
     np.save(params_path, run_result["params"], allow_pickle=True)
 
     print(f"Saved model to {model_path}")
-
-    # ---- Save final-stage extras ----
-    if final:
-        if X_train is None or X_test is None:
-            raise ValueError("X_train and X_test must be provided when final=True")
-
-        # latent + reconstruction assuming encoder/decoder attributes exist
-        encoder = model.get_layer("latent")
-        Z_train = encoder.predict(X_train)
-        Z_test  = encoder.predict(X_test)
-
-        Xrec_train = model.predict(X_train)
-        Xrec_test  = model.predict(X_test)
-
-        np.save(os.path.join(save_dir, f"{file_name}_z_train.npy"), Z_train)
-        np.save(os.path.join(save_dir, f"{file_name}_z_test.npy"),  Z_test)
-        np.save(os.path.join(save_dir, f"{file_name}_xrec_train.npy"), Xrec_train)
-        np.save(os.path.join(save_dir, f"{file_name}_xrec_test.npy"),  Xrec_test)
-
-        print("Saved latent space + reconstruction artifacts")
-
 
 

@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Dense, Dropout, BatchNormalization
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.utils import to_categorical
@@ -16,8 +16,8 @@ import tensorflow as tf
 params = {
     # Encoder
     "enc_units1": 512,
-    "enc_units2": 256,
-    "enc_units3": 128,
+    "enc_units2": 0,
+    "enc_units3": 0,
     "enc_drop1": 0.2,
 
     # Latent space
@@ -25,7 +25,7 @@ params = {
 
     # Decoder 
     "dec_units1": 128,
-    "dec_units2": 512,
+    "dec_units2": 0,
     "dec_units3": 0,
 
     # Shared
@@ -66,53 +66,55 @@ def load_data(path="../data/merged_expression.csv", test_size=0.2, seed=params["
 # --------------------------------------------------------------------
 
 def build_ae(X_train, params):
-
-    model = Sequential()
+    # Input layer
+    inputs = Input(shape=(X_train.shape[1],), name="input_layer")
+    x = inputs
 
     # -------- Encoder --------
-    model.add(Dense(params["enc_units1"], activation=params["activation"],
-                    input_shape=(X_train.shape[1],)))
+    x = Dense(params["enc_units1"], activation=params["activation"])(x)
 
     if params["enc_drop1"] > 0:
-        model.add(Dropout(params["enc_drop1"]))
-        model.add(BatchNormalization())
+        x = Dropout(params["enc_drop1"])(x)
+        x = BatchNormalization()(x)
 
     if params["enc_units2"] > 0:
-        model.add(Dense(params["enc_units2"], activation=params["activation"]))
-        model.add(BatchNormalization())
+        x = Dense(params["enc_units2"], activation=params["activation"])(x)
+        x = BatchNormalization()(x)
 
     if params["enc_units3"] > 0:
-        model.add(Dense(params["enc_units3"], activation=params["activation"]))
-        model.add(BatchNormalization())
+        x = Dense(params["enc_units3"], activation=params["activation"])(x)
+        x = BatchNormalization()(x)
 
     # Latent layer (bottleneck)
-    model.add(Dense(params["latent_dim"], activation="linear", name="latent"))
+    latent = Dense(params["latent_dim"], activation="linear", name="latent")(x)
+    x = latent
 
     # -------- Decoder --------
     if params["dec_units1"] > 0:
-        model.add(Dense(params["dec_units1"], activation=params["activation"]))
+        x = Dense(params["dec_units1"], activation=params["activation"])(x)
 
     if params["dec_units2"] > 0:
-        model.add(Dense(params["dec_units2"], activation=params["activation"]))
-    
+        x = Dense(params["dec_units2"], activation=params["activation"])(x)
+
     if params["dec_units3"] > 0:
-        model.add(Dense(params["dec_units3"], activation=params["activation"]))
+        x = Dense(params["dec_units3"], activation=params["activation"])(x)
 
     # Output layer — reconstruct input
-    model.add(Dense(X_train.shape[1], activation="linear"))
+    outputs = Dense(X_train.shape[1], activation="linear")(x)
+
+    # Create model
+    model = Model(inputs=inputs, outputs=outputs, name="autoencoder")
 
     # -------- Optimizer --------
-    if params["optimizer"] == "rmsprop":
+    if params["optimizer"].lower() == "rmsprop":
         opt = RMSprop(learning_rate=params["lr"])
     else:
         opt = Adam(learning_rate=params["lr"])
 
-    model.compile(
-        optimizer=opt,
-        loss="mse"
-    )
+    model.compile(optimizer=opt, loss="mse")
 
     return model
+
 
 # --------------------------------------------------------------------
 # -------------------- Callbacks -------------------------------------
