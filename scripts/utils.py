@@ -6,6 +6,10 @@ import itertools
 import random
 import os
 
+import matplotlib as mpl
+mpl.rcParams["image.cmap"] = "viridis"
+
+
 
 ### ------------- Defining and sampling parameter combinations ------------
 
@@ -56,13 +60,15 @@ def sample_combinations(search_space, sample_ratio=0.6, seed=22):
 
 ### ------------- Exploring the hyperparameter tuning output --------------
 
-
 import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-def explore_tuning(search_space, output_tuning, stage_name="Stage 1"):
+def explore_tuning(search_space, 
+                   output_tuning, 
+                   stage_name="Stage 1", 
+                   param_name_map=None):
     """
     Explore and visualize tuning results for a given search stage.
 
@@ -81,50 +87,75 @@ def explore_tuning(search_space, output_tuning, stage_name="Stage 1"):
     stage_name : str, optional (default="Stage 1")
         Label used in figure titles to distinguish exploration phases.
 
+    param_name_map : str, optional (default=None)
+        Explicit name of parameters for clearer visualisation
+
     Returns
     -------
     pandas.DataFrame
         A tidy DataFrame containing hyperparameters and validation loss,
         which can be reused for further custom analysis.
     """
-
     tuned_params = list(search_space.keys())
 
     results = pd.DataFrame([
-        {k: r["params"].get(k, np.nan) for k in tuned_params}
-        | {"val_loss": r.get("val_loss", np.nan)}
+        {
+            **{k: r["params"].get(k, np.nan) for k in tuned_params},
+            "mse": r.get("mse", np.nan),
+            "mae": r.get("mae", np.nan),
+            "rmse": r.get("rmse", np.nan),
+        }
         for r in output_tuning
     ])
 
-    # --- Summary statistics ---
-    print("=== Validation Loss Summary ===")
-    print(results[["val_loss"]].describe(), "\n")
-
-    # --- Distribution of validation loss ---
-    plt.figure(figsize=(7, 5))
-    sns.histplot(results["val_loss"], bins=20, kde=True, color="#31688E")
-    plt.xlabel("Validation Loss")
-    plt.ylabel("Count")
-    plt.title(f"Distribution of Validation Losses — {stage_name}")
+    print("=== Metric Summary ===")
+    print(results[["mse", "mae", "rmse"]].describe(), "\n")
+    
+    # --- Scatter: MSE vs MAE ---
+    plt.figure(figsize=(8, 6))
+    sns.scatterplot(
+        data=results,
+        x="mse", y="mae",
+        palette="viridis", s=70
+    )
+    plt.xlabel("MSE (Validation)")
+    plt.ylabel("MAE (Validation)")
+    #plt.title(f"MSE vs MAE across hyperparameter runs — {stage_name}")
+    plt.tight_layout()
     plt.show()
 
-    # --- Correlation between hyperparameters and validation loss ---
-    # only compute correlations for numeric columns
+    # --- Correlation: hyperparameters vs MSE ---
     numeric_cols = results.select_dtypes(include=[np.number])
+    numeric_cols = numeric_cols.drop(columns=[col for col in ['mae', 'rmse'] if col in numeric_cols.columns])
 
-    if "val_loss" in numeric_cols.columns and len(numeric_cols.columns) > 1:
-        param_corr = numeric_cols.corr()["val_loss"].drop("val_loss")
 
-        plt.figure(figsize=(8, 5))
-        sns.barplot(x=param_corr.index, y=param_corr.values, color="#31688E")
-        plt.xticks(rotation=45)
-        plt.ylabel("Correlation with Validation Loss")
-        plt.title(f"Hyperparameters vs Validation Loss — {stage_name}")
-        plt.show()
-    else:
-        print("Not enough numeric hyperparameters to compute correlations.")
+    if "mse" not in numeric_cols.columns:
+        print("No MSE values found — cannot compute correlations.")
+        return results
+
+    param_cols = [c for c in numeric_cols.columns if c != "mse"]
+    if not param_cols:
+        print("No numeric hyperparameters to correlate with MSE.")
+        return results
+
+    corr = numeric_cols.corr()["mse"].drop("mse")
+
+    # Apply readable label mapping
+    if param_name_map is not None:
+        corr.index = [param_name_map.get(x, x) for x in corr.index]
+
+    plt.figure(figsize=(8, 6))
+    sns.barplot(x=corr.index, y=corr.values)
+    plt.xticks(rotation=40, ha="right")
+    plt.ylabel("Correlation with MSE")
+    plt.xlabel("Hyperparameter")
+    #plt.title(f"Hyperparameters vs MSE — {stage_name}")
+    plt.tight_layout()
+    plt.show()
 
     return results
+
+    
 
 
 ### ---------------------------- Saving model ------------------------------
@@ -183,7 +214,7 @@ import matplotlib
 import numpy as np
 
 def plot_pca(Z, label_map, n_components=2, title="PCA of Latent Space",
-             cmap_name="tab10", s=40, random_state=0):
+             cmap_name="viridis", s=40, random_state=0):
 
     pca = PCA(n_components=n_components, random_state=random_state)
     Z_2d = pca.fit_transform(Z)
@@ -239,7 +270,7 @@ def plot_umap(
     n_neighbors=20,
     min_dist=0.3,
     title="UMAP of Latent Space",
-    cmap_name="tab10",
+    cmap_name="viridis",
     s=40,
     random_state=22,
 ):
@@ -316,7 +347,7 @@ import numpy as np
 def plot_tsne(Z, label_map, perplexity=30, n_iter=1000,
               learning_rate="auto", init="pca",
               title="t-SNE of Latent Space",
-              cmap_name="tab10", s=40, random_state=0):
+              cmap_name="viridis", s=40, random_state=0):
 
     tsne = TSNE(n_components=2,
                 perplexity=perplexity,
