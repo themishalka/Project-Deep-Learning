@@ -102,7 +102,7 @@ def explore_tuning(search_space, output_tuning, stage_name="Stage 1"):
 
     # --- Distribution of validation loss ---
     plt.figure(figsize=(7, 5))
-    sns.histplot(results["val_loss"], bins=20, kde=True)
+    sns.histplot(results["val_loss"], bins=20, kde=True, color="#31688E")
     plt.xlabel("Validation Loss")
     plt.ylabel("Count")
     plt.title(f"Distribution of Validation Losses — {stage_name}")
@@ -116,7 +116,7 @@ def explore_tuning(search_space, output_tuning, stage_name="Stage 1"):
         param_corr = numeric_cols.corr()["val_loss"].drop("val_loss")
 
         plt.figure(figsize=(8, 5))
-        sns.barplot(x=param_corr.index, y=param_corr.values)
+        sns.barplot(x=param_corr.index, y=param_corr.values, color="#31688E")
         plt.xticks(rotation=45)
         plt.ylabel("Correlation with Validation Loss")
         plt.title(f"Hyperparameters vs Validation Loss — {stage_name}")
@@ -162,4 +162,201 @@ def save_model(
 
     print(f"Saved model to {model_path}")
 
+
+# ----------------- Creating label map for visualisation -------------------
+
+def create_map(X, meta, ref_col, mapping_col):
+    tumor_type_map = meta.set_index(ref_col)[mapping_col]
+    tumor_for_test = X.index.map(tumor_type_map)
+    tumor_for_test = tumor_for_test.fillna("NA") 
+    tumor_map = tumor_for_test.astype("category")
+    colors_tumor = tumor_map.codes
+
+    return tumor_map, colors_tumor
+
+
+# ---------------------------- PCA projection -------------------------------
+
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+import matplotlib
+import numpy as np
+
+def plot_pca(Z, label_map, n_components=2, title="PCA of Latent Space",
+             cmap_name="tab10", s=40, random_state=0):
+
+    pca = PCA(n_components=n_components, random_state=random_state)
+    Z_2d = pca.fit_transform(Z)
+
+    # Label handling
+    if hasattr(label_map, "cat"):
+        categories = label_map.cat.categories
+        color_codes = label_map.cat.codes.values
+    else:
+        categories, inv = np.unique(label_map, return_inverse=True)
+        color_codes = inv
+
+    cmap = getattr(plt.cm, cmap_name)
+    norm = matplotlib.colors.Normalize(vmin=color_codes.min(),
+                                       vmax=color_codes.max())
+
+    # Plot
+    plt.figure(figsize=(8,5))
+    plt.scatter(Z_2d[:,0], Z_2d[:,1],
+                c=color_codes, cmap=cmap, norm=norm, s=s)
+
+    plt.xlabel("PC1")
+    plt.ylabel("PC2")
+    plt.title(title)
+
+    # Legend
+    handles = [
+        plt.Line2D([], [], marker="o", linestyle="",
+                   color=cmap(norm(i)), label=str(cat))
+        for i, cat in enumerate(categories)
+    ]
+    plt.legend(handles=handles, title="Label", loc="upper right")
+    plt.xlabel(f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)")
+    plt.ylabel(f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)")
+    plt.tight_layout()
+    plt.show()
+
+    print("Explained variance ratio:", pca.explained_variance_ratio_)
+    return Z_2d, pca
+
+
+
+# ---------------------------- UMAP projection ------------------------------
+
+from umap.umap_ import UMAP
+import matplotlib.pyplot as plt
+import matplotlib
+import numpy as np
+
+def plot_umap(
+    Z,
+    label_map,
+    n_neighbors=20,
+    min_dist=0.3,
+    title="UMAP of Latent Space",
+    cmap_name="tab10",
+    s=40,
+    random_state=22,
+):
+    """
+    Z : array-like, shape (n_samples, n_latent)
+        Latent space embeddings.
+    label_map : pandas.Categorical or Series
+        Labels for coloring (e.g. tumor_map, grade_map).
+    """
+
+    # Run UMAP
+    reducer = UMAP(
+        n_neighbors=n_neighbors,
+        min_dist=min_dist,
+        random_state=random_state,
+    )
+    Z_umap = reducer.fit_transform(Z)
+
+    # Convert labels → color codes
+    if hasattr(label_map, "cat"):
+        categories = label_map.cat.categories
+        color_codes = label_map.cat.codes.values
+    else:
+        # fallback for plain arrays / series
+        categories, inv = np.unique(label_map, return_inverse=True)
+        color_codes = inv
+
+    # Shared colormap + normalization
+    cmap = getattr(plt.cm, cmap_name)
+    norm = matplotlib.colors.Normalize(
+        vmin=color_codes.min(),
+        vmax=color_codes.max()
+    )
+
+    # ---- Plot ----
+    plt.figure(figsize=(8, 5))
+    plt.scatter(
+        Z_umap[:, 0],
+        Z_umap[:, 1],
+        c=color_codes,
+        cmap=cmap,
+        norm=norm,
+        s=s,
+    )
+
+    plt.xlabel("UMAP 1")
+    plt.ylabel("UMAP 2")
+    plt.title(title)
+
+    # Legend using exact category→code mapping
+    handles = [
+        plt.Line2D(
+            [], [], marker="o", linestyle="",
+            color=cmap(norm(i)),
+            label=str(cat),
+        )
+        for i, cat in enumerate(categories)
+    ]
+
+    plt.legend(handles=handles, title="Label", loc="upper right")
+    plt.tight_layout()
+    plt.show()
+
+    return Z_umap
+
+
+# ------------------------- t-SNE projection ----------------------------
+
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+import matplotlib
+import numpy as np
+
+def plot_tsne(Z, label_map, perplexity=30, n_iter=1000,
+              learning_rate="auto", init="pca",
+              title="t-SNE of Latent Space",
+              cmap_name="tab10", s=40, random_state=0):
+
+    tsne = TSNE(n_components=2,
+                perplexity=perplexity,
+                max_iter=n_iter,
+                learning_rate=learning_rate,
+                init=init,
+                random_state=random_state)
+
+    Z_2d = tsne.fit_transform(Z)
+
+    # Label handling
+    if hasattr(label_map, "cat"):
+        categories = label_map.cat.categories
+        color_codes = label_map.cat.codes.values
+    else:
+        categories, inv = np.unique(label_map, return_inverse=True)
+        color_codes = inv
+
+    cmap = getattr(plt.cm, cmap_name)
+    norm = matplotlib.colors.Normalize(vmin=color_codes.min(),
+                                       vmax=color_codes.max())
+
+    # Plot
+    plt.figure(figsize=(8,5))
+    plt.scatter(Z_2d[:,0], Z_2d[:,1],
+                c=color_codes, cmap=cmap, norm=norm, s=s)
+
+    plt.xlabel("t-SNE 1")
+    plt.ylabel("t-SNE 2")
+    plt.title(title)
+
+    # Legend
+    handles = [
+        plt.Line2D([], [], marker="o", linestyle="",
+                   color=cmap(norm(i)), label=str(cat))
+        for i, cat in enumerate(categories)
+    ]
+    plt.legend(handles=handles, title="Label", loc="upper right")
+    plt.tight_layout()
+    plt.show()
+
+    return Z_2d, tsne
 

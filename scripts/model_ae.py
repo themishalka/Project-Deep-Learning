@@ -18,7 +18,7 @@ params = {
     "enc_units1": 512,
     "enc_units2": 0,
     "enc_units3": 0,
-    "enc_drop1": 0.2,
+    "drop1": 0.2,
 
     # Latent space
     "latent_dim": 32,
@@ -72,17 +72,20 @@ def build_ae(X_train, params):
 
     # -------- Encoder --------
     x = Dense(params["enc_units1"], activation=params["activation"])(x)
-
-    if params["enc_drop1"] > 0:
-        x = Dropout(params["enc_drop1"])(x)
-        x = BatchNormalization()(x)
+    if params["drop1"] > 0:
+        x = Dropout(params["drop1"])(x)
+    x = BatchNormalization()(x)
 
     if params["enc_units2"] > 0:
         x = Dense(params["enc_units2"], activation=params["activation"])(x)
+        if params["drop1"] > 0:
+            x = Dropout(params["drop1"])(x)
         x = BatchNormalization()(x)
 
     if params["enc_units3"] > 0:
         x = Dense(params["enc_units3"], activation=params["activation"])(x)
+        if params["drop1"] > 0:
+            x = Dropout(params["drop1"])(x)
         x = BatchNormalization()(x)
 
     # Latent layer (bottleneck)
