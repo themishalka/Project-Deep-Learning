@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Dense, Dropout, BatchNormalization
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
@@ -18,7 +19,7 @@ params = {
     "enc_units1": 512,
     "enc_units2": 0,
     "enc_units3": 0,
-    "enc_drop1": 0.2,
+    "drop1": 0.2,
 
     # Latent space
     "latent_dim": 32,
@@ -72,17 +73,20 @@ def build_ae(X_train, params):
 
     # -------- Encoder --------
     x = Dense(params["enc_units1"], activation=params["activation"])(x)
-
-    if params["enc_drop1"] > 0:
-        x = Dropout(params["enc_drop1"])(x)
-        x = BatchNormalization()(x)
+    if params["drop1"] > 0:
+        x = Dropout(params["drop1"])(x)
+    x = BatchNormalization()(x)
 
     if params["enc_units2"] > 0:
         x = Dense(params["enc_units2"], activation=params["activation"])(x)
+        if params["drop1"] > 0:
+            x = Dropout(params["drop1"])(x)
         x = BatchNormalization()(x)
 
     if params["enc_units3"] > 0:
         x = Dense(params["enc_units3"], activation=params["activation"])(x)
+        if params["drop1"] > 0:
+            x = Dropout(params["drop1"])(x)
         x = BatchNormalization()(x)
 
     # Latent layer (bottleneck)
@@ -150,9 +154,23 @@ def train_ae(model, X_train, params):
 # --------------------------------------------------------------------
 
 def evaluate_ae(model, X_test):
-    loss = model.evaluate(X_test, X_test, verbose=0)
-    print(f"Test reconstruction loss: {loss:.4f}")
-    return loss
+    X_rec = model.predict(X_test, verbose=0)
+    mse = mean_squared_error(X_test, X_rec)
+    mae = mean_absolute_error(X_test, X_rec)
+    rmse = np.sqrt(mse)
+
+    metrics = {
+        "mse": mse,
+        "mae": mae,
+        "rmse": rmse
+    }
+
+    print(
+        f"Reconstruction metrics — "
+        f"MSE={mse:.4f}, MAE={mae:.4f}, RMSE={rmse:.4f}"
+    )
+
+    return metrics
 
 # --------------------------------------------------------------------
 # -------------------- Main execution -------------------------------
