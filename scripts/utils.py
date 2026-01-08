@@ -214,7 +214,7 @@ import matplotlib
 import numpy as np
 
 def plot_pca(Z, label_map, n_components=2, title="PCA of Latent Space",
-             cmap_name="viridis", s=40, random_state=0):
+             cmap_name="viridis", s=40, random_state=22):
 
     pca = PCA(n_components=n_components, random_state=random_state)
     Z_2d = pca.fit_transform(Z)
@@ -347,7 +347,7 @@ import numpy as np
 def plot_tsne(Z, label_map, perplexity=30, n_iter=1000,
               learning_rate="auto", init="pca",
               title="t-SNE of Latent Space",
-              cmap_name="viridis", s=40, random_state=0):
+              cmap_name="viridis", s=40, random_state=22):
 
     tsne = TSNE(n_components=2,
                 perplexity=perplexity,

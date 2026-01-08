@@ -68,25 +68,68 @@ save_cp_barplot <- function(enrich_obj, file, title, showCategory=15) {
 }
 
 # Ridge plot for fgsea results
-save_fgsea_ridgeplot <- function(fg, file, title, top_n=20) {
-  fg <- fg %>% dplyr::filter(!is.na(padj), !is.na(NES))
+save_fgsea_ridgeplot <- function(fg, file, title, top_n = 20) {
+  
+  fg <- fg %>% 
+    dplyr::filter(!is.na(padj), !is.na(NES))
+  
   if (nrow(fg) == 0) return(NULL)
   
-  # Take top positive/negative NES pathways
-  top_pos <- fg %>% dplyr::filter(NES > 0) %>% dplyr::arrange(padj) %>% dplyr::slice_head(n = top_n)
-  top_neg <- fg %>% dplyr::filter(NES < 0) %>% dplyr::arrange(padj) %>% dplyr::slice_head(n = top_n)
+  # Select top pathways by significance
+  top_pos <- fg %>% 
+    dplyr::filter(NES > 0) %>% 
+    dplyr::arrange(padj) %>% 
+    dplyr::slice_head(n = top_n)
+  
+  top_neg <- fg %>% 
+    dplyr::filter(NES < 0) %>% 
+    dplyr::arrange(padj) %>% 
+    dplyr::slice_head(n = top_n)
+  
   top_both <- dplyr::bind_rows(top_pos, top_neg)
   
-  top_both <- top_both %>% dplyr::mutate(pathway_label = forcats::fct_reorder(pathway, NES))
+  # Clean pathway names + labels
+  top_both <- top_both %>%
+    dplyr::mutate(
+      pathway_clean = pathway %>%
+        stringr::str_remove("^GOBP_") %>%
+        stringr::str_remove("^HALLMARK_") %>%
+        stringr::str_replace_all("_", " "),
+      pathway_clean = forcats::fct_reorder(pathway_clean, NES),
+      fdr_label = paste0("FDR = ", formatC(padj, format = "e", digits = 2))
+    )
   
-  p <- ggplot(top_both, aes(x = NES, y = pathway_label, fill = NES > 0)) +
-    ggridges::geom_density_ridges(stat = "binline", bins = 100, scale = 0.9) +
-    labs(x = "NES", y = NULL, title = title, fill = "NES > 0") +
+  p <- ggplot(top_both, aes(y = pathway_clean)) +
+    geom_segment(
+      aes(x = 0, xend = NES, yend = pathway_clean, color = NES > 0),
+      linewidth = 1
+    ) +
+    geom_point(
+      aes(
+        x = NES,
+        color = NES > 0,
+        size = -log10(padj)
+      )
+    ) +
+    labs(
+      x = "Normalized Enrichment Score (NES)",
+      y = NULL,
+      title = title,
+      color = "NES > 0",
+      size  = expression(-log[10]~FDR)
+    ) +
     theme_minimal() +
-    theme(axis.text.y = element_text(size = 8))
+    theme(
+      axis.text.y = element_text(size = 9),
+      plot.title = element_text(face = "bold"),
+      legend.position = "right"
+    )
   
-  ggsave(file, p, width = 10, height = 8, dpi = 200)
+  
+  ggsave(file, p, width = 11, height = 8, dpi = 200)
 }
+
+
 
 # ---- Main loop ----
 classes <- c("ae")

@@ -1,0 +1,2 @@
+"ID","Description","GeneRatio","BgRatio","RichFactor","FoldEnrichment","zScore","pvalue","p.adjust","qvalue","geneID","Count"
+"GO:0042886","amide transport","9/47","55/1675",0.163636363636364,5.83172147001934,6.18906699641998,1.18388882734873e-05,0.0167875435718049,0.0152036249406889,"EDN3/FOLR2/EPHA5/SLC14A1/VGF/SFRP1/AQP9/GJA1/MGST1",9
