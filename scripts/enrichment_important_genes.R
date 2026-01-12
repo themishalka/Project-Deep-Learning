@@ -15,7 +15,7 @@ library(readr)
 
 # ---- USER: set paths ----
 ig_csv <- "C:/Users/joann/Desktop/M2/Deep_Learning/MLP_run/20260105_181536/final/grad_importance/grad_importance_per_class_gene_names.csv"  # <-- your file
-out_dir <- "C:/Users/joann/Desktop/M2/Deep_Learning/MLP_run/20260105_181536/final"         # <-- output folder
+out_dir <- "C:/Users/joann/Desktop/M2/Deep_Learning/MLP_run/20260105_181536/final"      # <-- output folder
 
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
