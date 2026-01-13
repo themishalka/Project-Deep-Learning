@@ -1,0 +1,16 @@
+{
+  "out_dir": "C:/Users/joann/Desktop/M2/Deep_Learning/MLP_run",
+  "seed": 42,
+  "label_col": "tumor_grade",
+  "label_map": {
+    "G2": 0,
+    "G3": 1,
+    "G4": 2
+  },
+  "test_size": 0.15,
+  "n_folds": 9,
+  "max_epochs": 100,
+  "early_stop_patience": 5,
+  "hyperband_factor": 3,
+  "objective": "val_accuracy"
+}

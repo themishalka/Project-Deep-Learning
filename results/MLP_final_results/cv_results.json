@@ -1,0 +1,56 @@
+[
+  {
+    "fold": 1,
+    "val_accuracy": 0.7948718070983887,
+    "val_macro_f1": 0.7409026630827854,
+    "model_path": "C:/Users/joann/Desktop/M2/Deep_Learning/MLP_run\\20260105_181536\\fold_01\\best_model.keras"
+  },
+  {
+    "fold": 2,
+    "val_accuracy": 0.8846153616905212,
+    "val_macro_f1": 0.8637566137566138,
+    "model_path": "C:/Users/joann/Desktop/M2/Deep_Learning/MLP_run\\20260105_181536\\fold_02\\best_model.keras"
+  },
+  {
+    "fold": 3,
+    "val_accuracy": 0.8831169009208679,
+    "val_macro_f1": 0.8586423691198682,
+    "model_path": "C:/Users/joann/Desktop/M2/Deep_Learning/MLP_run\\20260105_181536\\fold_03\\best_model.keras"
+  },
+  {
+    "fold": 4,
+    "val_accuracy": 0.8311688303947449,
+    "val_macro_f1": 0.7790603696675803,
+    "model_path": "C:/Users/joann/Desktop/M2/Deep_Learning/MLP_run\\20260105_181536\\fold_04\\best_model.keras"
+  },
+  {
+    "fold": 5,
+    "val_accuracy": 0.9090909361839294,
+    "val_macro_f1": 0.8826733710454642,
+    "model_path": "C:/Users/joann/Desktop/M2/Deep_Learning/MLP_run\\20260105_181536\\fold_05\\best_model.keras"
+  },
+  {
+    "fold": 6,
+    "val_accuracy": 0.8701298832893372,
+    "val_macro_f1": 0.8439153439153438,
+    "model_path": "C:/Users/joann/Desktop/M2/Deep_Learning/MLP_run\\20260105_181536\\fold_06\\best_model.keras"
+  },
+  {
+    "fold": 7,
+    "val_accuracy": 0.8441558480262756,
+    "val_macro_f1": 0.8075430026649538,
+    "model_path": "C:/Users/joann/Desktop/M2/Deep_Learning/MLP_run\\20260105_181536\\fold_07\\best_model.keras"
+  },
+  {
+    "fold": 8,
+    "val_accuracy": 0.8571428656578064,
+    "val_macro_f1": 0.807831541218638,
+    "model_path": "C:/Users/joann/Desktop/M2/Deep_Learning/MLP_run\\20260105_181536\\fold_08\\best_model.keras"
+  },
+  {
+    "fold": 9,
+    "val_accuracy": 0.8311688303947449,
+    "val_macro_f1": 0.7886025560444164,
+    "model_path": "C:/Users/joann/Desktop/M2/Deep_Learning/MLP_run\\20260105_181536\\fold_09\\best_model.keras"
+  }
+]
